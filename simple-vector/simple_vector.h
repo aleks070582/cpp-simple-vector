@@ -1,3 +1,4 @@
+
 #pragma once
 #include <cassert>
 #include <initializer_list>
@@ -26,77 +27,48 @@ public:
     using Iterator = Type*;
     using ConstIterator = const Type*;
 
-    SimpleVector() noexcept = default;
+    SimpleVector() = default;
 
 
-    explicit SimpleVector(size_t size)
+    explicit SimpleVector(size_t size) :ptr(nullptr), vector_size(size), capacity(size)
     {
-        // Создаёт вектор из size элементов, инициализированных значением по умолчанию
-        if (size == 0)
-        {
-            vector_size = 0;
-        }
-        else
-        {
-            ptr = new Type[size]();
-        }
-        vector_size = size;
-        capacity = size;
-
+        ptr = new Type[size]();
     }
-    SimpleVector(SimpleVector&& other)
+
+    SimpleVector(SimpleVector&& other) :ptr(other.ptr), vector_size(other.vector_size), capacity(other.capacity)
     {
-        vector_size = other.vector_size;
-        capacity = other.capacity;
-        ptr = other.ptr;
         other.vector_size = 0;
         other.ptr = nullptr;
     }
-    SimpleVector(ReserveProxyObj proxy)
+
+    SimpleVector(ReserveProxyObj proxy) :ptr(nullptr), vector_size(0), capacity(0)
     {
         capacity = proxy.c;
         ptr = new Type[capacity];
     }
 
-    SimpleVector(size_t size, const Type& value)
+    SimpleVector(size_t size, const Type& value) :ptr(nullptr), vector_size(size),
+        capacity(size)
     {
         // Создаёт вектор из size элементов, инициализированных значением value
         ptr = new Type[size];
-        for (size_t i = 0; i < size; ++i)
-        {
-            *(ptr + i) = value;
-        }
-        vector_size = size;
-        capacity = size;
+
+        std::fill(this->begin(), this->end(), value);
+
     }
 
 
 
-    SimpleVector(std::initializer_list<Type> init)
+    SimpleVector(std::initializer_list<Type> init) :ptr(nullptr), vector_size(init.size()), capacity(vector_size)
     {// Создаёт вектор из std::initializer_list
-        size_t size = init.size();
-        ptr = new Type[size];
-        Type* temp_ptr = ptr;
-        for (const auto& ch : init)
-        {
-            *temp_ptr = ch;
-            ++temp_ptr;
-        }
-        vector_size = size;
-        capacity = vector_size;
+        ptr = new Type[capacity];
+        std::copy(init.begin(), init.end(), this->begin());
     }
 
-    SimpleVector(const SimpleVector& other)
+    SimpleVector(const SimpleVector& other) :ptr(nullptr), vector_size(other.vector_size), capacity(other.vector_size)
     {
-        size_t size = other.vector_size;
-        ptr = new Type[size];
-       
-        for (size_t i = 0; i < size; ++i)
-        {
-            *(ptr + i) = *(std::move(other.ptr + i));
-        }
-        vector_size = size;
-        capacity = size;
+        ptr = new Type[vector_size];
+        std::copy(other.begin(), other.end(), this->begin());
     }
 
     SimpleVector& operator=(const SimpleVector& rhs)
@@ -105,26 +77,22 @@ public:
         {
             return *this;
         }
-        size_t size = rhs.vector_size;
-        Type* new_ptr = new Type[size];
-        for (size_t i = 0; i < size; ++i)
-        {
-            *(new_ptr + i) = *(rhs.ptr + i);
-        }
-        delete[] ptr;
-        ptr = new_ptr;
-        vector_size = size;
-        capacity = size;
+        SimpleVector temp(rhs);
+        std::swap(*this, temp);
         return *this;
     }
 
-   SimpleVector& operator=(SimpleVector&& rhs)
-   {
-       ptr = rhs.ptr;
-       vector_size = rhs.vector_size;
-       capacity = rhs.capacity;
-       rhs.ptr = nullptr;
-       rhs.vector_size = 0;
+    SimpleVector& operator=(SimpleVector&& rhs)
+    {
+        if (rhs.ptr == this->ptr)
+        {
+            return *this;
+        }
+        ptr = rhs.ptr;
+        vector_size = rhs.vector_size;
+        capacity = rhs.capacity;
+        rhs.ptr = nullptr;
+        rhs.vector_size = 0;
         return *this;
     }
 
@@ -141,7 +109,7 @@ public:
             return;
         }
         Type* new_ptr = new Type[new_capacity];
-        std::copy(this->begin(), this->end(), new_ptr);
+        std::move(this->begin(), this->end(), new_ptr);
         capacity = new_capacity;
         delete[] ptr;
         ptr = new_ptr;
@@ -161,19 +129,10 @@ public:
         else
         {
             size_t temp = capacity == 0 ? 1 : capacity * 2;
-            Type* new_ptr = new Type[temp];
-            for (size_t i = 0; i < vector_size; ++i)
-            {
-                new_ptr[i] = ptr[i];
-            }
-            new_ptr[vector_size] = item;
-            delete[]ptr;
-            ptr = new_ptr;
-            capacity = temp;
+            this->Reserve(temp);
+            ptr[vector_size] = item;
             ++vector_size;
-
         }
-
     }
 
     void PushBack(Type&& item)
@@ -189,21 +148,11 @@ public:
         else
         {
             size_t temp = capacity == 0 ? 1 : capacity * 2;
-            Type* new_ptr = new Type[temp];
-            for (size_t i = 0; i < vector_size; ++i)
-            {
-                new_ptr[i] =std::move(ptr[i]);
-            }
-            new_ptr[vector_size] =std::move(item);
-            delete[]ptr;
-            ptr = new_ptr;
-            capacity = temp;
+            this->Reserve(temp);
+            ptr[vector_size] = std::move(item);
             ++vector_size;
-
         }
-
     }
-
 
 
     Iterator Insert(ConstIterator pos, const Type& value)
@@ -212,69 +161,39 @@ public:
         // Возвращает итератор на вставленное значение
         // Если перед вставкой значения вектор был заполнен полностью,
         // вместимость вектора должна увеличиться вдвое, а для вектора вместимостью 0 стать равной 1
-        Type* posi = const_cast<Type*>(pos);
-        Type* position = nullptr;
-        if (vector_size < capacity)
+        //Type* posi = const_cast<Type*>(pos);
+        size_t position = pos - this->begin();
+        if (vector_size == capacity)
         {
-            std::copy_backward(posi, this->end(), this->end() + 1);
-            *posi = std::move(value);
-            ++vector_size;
-            position = posi;
-        }
-
-        else if (vector_size == capacity)
-        {
-            size_t dest_from_begin = posi - this->begin();
             size_t capacity_temp = capacity == 0 ? 1 : capacity * 2;
-            Type* new_ptr = new Type[capacity_temp];
-            std::copy(this->begin(), posi, new_ptr);
-            position = new_ptr + dest_from_begin;
-            *(position) =std::move( value);
-            std::copy(posi, this->end(), (position + 1));
-            delete[] ptr;
-            ptr = new_ptr;
-            ++vector_size;
-            capacity = capacity_temp;
+            this->Reserve(capacity_temp);
         }
-        return position;
+        std::copy_backward(this->begin() + position, this->end(), this->end() + 1);
+        *(this->begin() + position) = value;
+        ++vector_size;
+        return this->begin() + position;
     }
 
-    Iterator Insert(ConstIterator pos,  Type&& value)
+    Iterator Insert(ConstIterator pos, Type&& value)
     {
-        
-        Type* posi = const_cast<Type*>(pos);
-        Type* position = nullptr;
-        if (vector_size < capacity)
-        {
-            std::move_backward(posi, this->end(), this->end() + 1);
-            *posi = std::move(value);
-            ++vector_size;
-            position = posi;
-        }
 
-        else if (vector_size == capacity)
+        size_t position = pos - this->begin();
+        if (vector_size == capacity)
         {
-            size_t dest_from_begin = posi - this->begin();
             size_t capacity_temp = capacity == 0 ? 1 : capacity * 2;
-            Type* new_ptr = new Type[capacity_temp];
-            std::move(this->begin(), posi, new_ptr);
-            position = new_ptr + dest_from_begin;
-            *(position) = std::move(value);
-            std::move(posi, this->end(), (position + 1));
-            delete[] ptr;
-            ptr = new_ptr;
-            ++vector_size;
-            capacity = capacity_temp;
+            this->Reserve(capacity_temp);
         }
-        return position;
+        std::move_backward(this->begin() + position, this->end(), this->end() + 1);
+        *(this->begin() + position) = std::move(value);
+        ++vector_size;
+        return this->begin() + position;
     }
+
+
 
     void PopBack() noexcept
     {
-        if (vector_size == 0)
-        {
-            return;
-        }
+        assert(vector_size != 0);
         --vector_size;
     }
 
@@ -298,7 +217,7 @@ public:
     ~SimpleVector()
     {
 
-        
+
         delete[] ptr;
 
     }
@@ -462,7 +381,7 @@ template <typename Type>
 inline bool operator!=(const SimpleVector<Type>& lhs, const SimpleVector<Type>& rhs)
 {
 
-    return !std::equal(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
+    return !(lhs == rhs);
 }
 
 template <typename Type>
@@ -474,19 +393,18 @@ inline bool operator<(const SimpleVector<Type>& lhs, const SimpleVector<Type>& r
 
 template <typename Type>
 inline bool operator<=(const SimpleVector<Type>& lhs, const SimpleVector<Type>& rhs) {
-    bool result = std::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end()) ||
-        std::equal(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
-    return result;
+
+    return (lhs < rhs || lhs == rhs);
 }
 
 template <typename Type>
 inline bool operator>(const SimpleVector<Type>& lhs, const SimpleVector<Type>& rhs) {
-    bool result = lhs <= rhs;
-    return !result;
+
+    return !(lhs < lhs || lhs == rhs);
 }
 
 template <typename Type>
 inline bool operator>=(const SimpleVector<Type>& lhs, const SimpleVector<Type>& rhs) {
-    bool result = lhs < rhs;
-    return !result;
+
+    return !(lhs < rhs);
 }
