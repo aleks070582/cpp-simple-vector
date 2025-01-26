@@ -1,4 +1,3 @@
-
 #pragma once
 #include <cassert>
 #include <initializer_list>
@@ -28,43 +27,44 @@ public:
 
     SimpleVector() = default;
 
-    explicit SimpleVector(size_t size) : vector_size(size), capacity(size)
+    explicit SimpleVector(size_t size) :SimpleVector(size, Type{})
     {
-        ptr = ArrayPtr<Type>(size);
-        Type temp{};
-        std::fill(this->begin(), this->end(), temp);
     }
 
     SimpleVector(SimpleVector&& other) noexcept
-      : ptr(std::move(other.ptr)), vector_size(other.vector_size), capacity(other.capacity) 
+        : ptr(std::move(other.ptr)), vector_size(other.vector_size), capacity(other.capacity)
     {
         other.vector_size = 0;
         other.capacity = 0;
     }
 
-    SimpleVector(ReserveProxyObj proxy) : vector_size(0), capacity(proxy.c) {
+    SimpleVector(ReserveProxyObj proxy) :vector_size(0), capacity(proxy.c) {
         ptr = ArrayPtr<Type>(capacity);
     }
 
-    SimpleVector(size_t size, const Type& value) : SimpleVector(size)
+    SimpleVector(size_t size, const Type& value) :ptr(ArrayPtr<Type>(size)), vector_size(size), capacity(size)
     {
-        
+
         std::fill(this->begin(), this->end(), value);
     }
 
-    SimpleVector(std::initializer_list<Type> init):SimpleVector(init.size())
+    SimpleVector(std::initializer_list<Type> init):SimpleVector(init.begin(),init.end())
     {
-       std::copy(init.begin(), init.end(), this->begin());
+        
     }
 
-    SimpleVector(const SimpleVector& other): SimpleVector(other.vector_size)
+    SimpleVector(const SimpleVector& other):SimpleVector(other.begin(), other.end())
     {
-          std::copy(other.begin(), other.end(), this->begin());
+       
     }
 
+    SimpleVector(const Type* firstIt, const Type* secondIt) :ptr(ArrayPtr<Type>(secondIt - firstIt)), vector_size(secondIt - firstIt), capacity(secondIt - firstIt)
+    {
+        std::copy(firstIt,secondIt,this->begin());
+    }
     SimpleVector& operator=(const SimpleVector& rhs)
- {
-        if (rhs.ptr.Get() == this->ptr.Get())
+    {
+        if (rhs == *this)
         {
             return *this;
         }
@@ -74,7 +74,7 @@ public:
     }
 
     SimpleVector& operator=(SimpleVector&& rhs) noexcept {
-        if (rhs.ptr.Get() == this->ptr.Get() )
+        if (rhs == *this)
         {
             return *this;
         }
@@ -147,7 +147,7 @@ public:
     }
 
     void PopBack() noexcept {
-        assert(vector_size != 0);
+        assert(this->IsEmpty() == false);
         --vector_size;
     }
 
@@ -180,25 +180,26 @@ public:
 
     Type& operator[](size_t index) noexcept
     {
-        return *(ptr.Get() + index);
+        return ptr[index];
+
     }
 
     const Type& operator[](size_t index) const noexcept {
-        return *(ptr.Get() + index);
+        return ptr[index];
     }
 
     Type& At(size_t index) {
         if (index >= vector_size) {
             throw std::out_of_range("out_of_range");
         }
-        return *(ptr.Get() + index);
+        return ptr[index];
     }
 
     const Type& At(size_t index) const {
         if (index >= vector_size) {
             throw std::out_of_range("out_of_range");
         }
-        return *(ptr.Get() + index);
+        return ptr[index];
     }
 
     void Clear() noexcept {
@@ -212,14 +213,14 @@ public:
         else if (new_size <= capacity) {
             for (size_t i = vector_size; i < new_size; ++i)
             {
-                new(ptr.Get() + i) Type(); 
+                new(ptr.Get() + i) Type();
             }
             vector_size = new_size;
         }
         else {
             this->Reserve(new_size);
             for (size_t i = vector_size; i < new_size; ++i) {
-                new(ptr.Get() + i) Type();  
+                new(ptr.Get() + i) Type();
             }
             vector_size = new_size;
         }
@@ -273,12 +274,12 @@ inline bool operator<(const SimpleVector<Type>& lhs, const SimpleVector<Type>& r
 
 template <typename Type>
 inline bool operator<=(const SimpleVector<Type>& lhs, const SimpleVector<Type>& rhs) {
-    return !(rhs < lhs); 
+    return !(rhs < lhs);
 }
 
 template <typename Type>
 inline bool operator>(const SimpleVector<Type>& lhs, const SimpleVector<Type>& rhs) {
-    return rhs < lhs; 
+    return rhs < lhs;
 }
 
 template <typename Type>
