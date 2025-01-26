@@ -38,9 +38,12 @@ public:
         other.capacity = 0;
     }
 
-    SimpleVector(ReserveProxyObj proxy) :vector_size(0), capacity(proxy.c) {
-        ptr = ArrayPtr<Type>(capacity);
-    }
+   SimpleVector(ReserveProxyObj proxy) :vector_size(0), capacity(proxy.c) 
+{
+    ptr = ArrayPtr<Type>(capacity);
+    std::fill(this->begin(), this->end(),Type());
+
+}
 
     SimpleVector(size_t size, const Type& value) :ptr(ArrayPtr<Type>(size)), vector_size(size), capacity(size)
     {
@@ -64,7 +67,7 @@ public:
     }
     SimpleVector& operator=(const SimpleVector& rhs)
     {
-        if (rhs == *this)
+      if (&rhs == this)
         {
             return *this;
         }
@@ -74,7 +77,7 @@ public:
     }
 
     SimpleVector& operator=(SimpleVector&& rhs) noexcept {
-        if (rhs == *this)
+      if (&rhs == this)
         {
             return *this;
         }
